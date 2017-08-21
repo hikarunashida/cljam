@@ -4,7 +4,8 @@
             [cljam.io.sam.util :as sam-util]
             [cljam.io.bam-index.core :as bai]
             [cljam.io.bam.decoder :as decoder]
-            [cljam.io.util.lsb :as lsb])
+            [cljam.io.util.lsb :as lsb]
+            [cljam.io.util.bgzf :as bgzf])
   (:import [java.io Closeable EOFException IOException FileNotFoundException]
            [cljam.io.bam.decoder BAMRawBlock]
            [java.nio ByteBuffer]
@@ -79,10 +80,10 @@
   ([^BAMReader rdr]
    (let [r ^BGZFInputStream (.reader rdr)
          dr (.data-reader rdr)
-         start (.getFilePointer r)]
-     (when-not (zero? (.available r))
+         start (bgzf/get-file-pointer r)]
+     (when (bgzf/has-remaining? r)
        (let [data (read-a-block! dr)
-             curr (.getFilePointer r)]
+             curr (bgzf/get-file-pointer r)]
          (cons (BAMRawBlock. data start curr)
                (lazy-seq (read-to-finish rdr)))))))
   ([^BAMReader rdr
@@ -91,10 +92,10 @@
    (let [r ^BGZFInputStream (.reader rdr)
          dr (.data-reader rdr)]
      (when (< start finish)
-       (.seek r start)
-       (when-not (zero? (.available r))
+       (bgzf/seek r start)
+       (when (bgzf/has-remaining? r)
          (let [data (read-a-block! dr)
-               curr (.getFilePointer r)]
+               curr (bgzf/get-file-pointer r)]
            (cons (BAMRawBlock. data start curr)
                  (lazy-seq (read-to-finish rdr curr finish)))))))))
 
