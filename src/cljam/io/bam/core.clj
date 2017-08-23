@@ -3,10 +3,12 @@
   (:require [clojure.java.io :as cio]
             [clojure.string :as cstr]
             [cljam.io.bam [common :as common]
-                          [reader :as reader]
-                          [writer :as writer]]
+             [reader :as reader]
+             [writer :as writer]]
             [cljam.io.bam-index :as bai]
-            [cljam.io.util.lsb :as lsb])
+            [cljam.io.util.lsb :as lsb]
+            [cljam.io.util.pbgzf :as pbgzf]
+            [cljam.io.util.bgzf :as bgzf])
   (:import java.util.Arrays
            [java.io DataInputStream DataOutputStream IOException FileNotFoundException]
            [bgzf4j BGZFInputStream BGZFOutputStream]
@@ -31,14 +33,15 @@
 (defn ^BAMReader reader
   "Creates a `cljam.io.bam.BAMReader` instance for the given path."
   [f]
-  (let [rdr (BGZFInputStream. (cio/file f))
+  (let [;rdr (BGZFInputStream. (cio/file f))
+        rdr (pbgzf/parallel-bgzf-input-stream f 8)
         data-rdr (DataInputStream. rdr)]
     (when-not (Arrays/equals ^bytes (lsb/read-bytes data-rdr 4) (.getBytes ^String common/bam-magic))
       (throw (IOException. "Invalid BAM file")))
     (let [{:keys [header refs]} (reader/load-headers data-rdr)
           index-delay (delay (bam-index f))]
       (BAMReader. (.getAbsolutePath (cio/file f))
-                  header refs rdr data-rdr index-delay (.getFilePointer rdr)))))
+                  header refs rdr data-rdr index-delay (bgzf/get-file-pointer rdr)))))
 
 (defn ^BAMReader clone-reader
   "Clones bam reader sharing persistent objects."

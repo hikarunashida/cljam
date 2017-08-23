@@ -78,10 +78,10 @@
 (defn- read-to-finish
   "Reads alignment blocks until reaches to the finish pointer or EOF."
   ([^BAMReader rdr]
-   (let [r ^BGZFInputStream (.reader rdr)
+   (let [r (.reader rdr)
          dr (.data-reader rdr)
          start (bgzf/get-file-pointer r)]
-     (when (bgzf/has-remaining? r)
+     (when-not (zero? (bgzf/available r))
        (let [data (read-a-block! dr)
              curr (bgzf/get-file-pointer r)]
          (cons (BAMRawBlock. data start curr)
@@ -89,11 +89,11 @@
   ([^BAMReader rdr
     ^long start
     ^long finish]
-   (let [r ^BGZFInputStream (.reader rdr)
+   (let [r (.reader rdr)
          dr (.data-reader rdr)]
      (when (< start finish)
        (bgzf/seek r start)
-       (when (bgzf/has-remaining? r)
+       (when-not (zero? (bgzf/available r))
          (let [data (read-a-block! dr)
                curr (bgzf/get-file-pointer r)]
            (cons (BAMRawBlock. data start curr)
@@ -113,7 +113,7 @@
   [^BAMReader rdr chr start end decoder]
   (let [bai @(.index-delay rdr)]
     (if (= chr "*")
-      (do (.seek ^BGZFInputStream (.reader rdr) (ffirst (bai/get-unplaced-spans bai)))
+      (do (bgzf/seek (.reader rdr) (ffirst (bai/get-unplaced-spans bai)))
           (read-blocks-sequentially* rdr decoder))
       (let [refs (.refs rdr)]
         (->> (bai/get-spans bai (sam-util/ref-id refs chr) start end)
