@@ -120,14 +120,33 @@
     (if (= chr "*")
       (do (.seek ^BGZFInputStream (.reader rdr) (ffirst (bai/get-unplaced-spans bai)))
           (read-blocks-sequentially* rdr decoder))
-      (let [refs (.refs rdr)]
-        (->> (bai/get-spans bai (sam-util/ref-id refs chr) start end)
-             (eduction
-              (comp
-               (mapcat
-                (fn [[begin finish]]
-                  (read-to-finish rdr begin finish)))
-               (keep #(decoder % start end)))))))))
+      (let [refs (.refs rdr)
+            spans (bai/get-spans bai (sam-util/ref-id refs chr) start end)
+            r ^BGZFInputStream (.reader rdr)
+            dr (.data-reader rdr)]
+        (when (seq spans)
+          (reify clojure.lang.IReduceInit
+            (reduce [_ rf init]
+              (loop [v init
+                     e 0
+                     beg (.getFilePointer r)
+                     s spans]
+                (if-not (neg? e)
+                  (if (< beg e)
+                    (let [ba (read-a-block! dr)
+                          ptr (.getFilePointer r)
+                          blk (BAMRawBlock. ba beg ptr)]
+                      (if-let [aln (decoder blk start end)]
+                        (let [vv (rf v aln)]
+                          (if (reduced? vv)
+                            @vv
+                            (recur vv e ptr s)))
+                        (recur v e ptr s)))
+                    (if-let [[ns ne] (first s)]
+                      (do (.seek r ns)
+                          (recur v (long ne) (long ns) (next s)))
+                      v))
+                  v)))))))))
 
 (defn load-headers
   "Reads header section of BAM file and returns it as a map."

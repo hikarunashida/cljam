@@ -64,14 +64,16 @@
   (let [beg (int beg)
         end (int end)
         offset (int offset)]
-    (doseq [^SAMRegionBlock aln alns]
-      (let [left (Math/max ^int (.pos aln) beg)
-            right (unchecked-inc-int (.end aln))
-            left-index (unchecked-add-int (unchecked-subtract-int left beg) offset)
-            right-index (unchecked-add-int (unchecked-subtract-int right beg) offset)]
-        (aset-int pile left-index (unchecked-inc-int (aget pile left-index)))
-        (when (<= right end)
-          (aset-int pile right-index (unchecked-dec-int (aget pile right-index))))))
+    (reduce (fn [_ ^SAMRegionBlock aln]
+              (let [left (Math/max ^int (.pos aln) beg)
+                    right (unchecked-inc-int (.end aln))
+                    left-index (unchecked-add-int (unchecked-subtract-int left beg) offset)
+                    right-index (unchecked-add-int (unchecked-subtract-int right beg) offset)]
+                (aset-int pile left-index (unchecked-inc-int (aget pile left-index)))
+                (when (<= right end)
+                  (aset-int pile right-index (unchecked-dec-int (aget pile right-index))))))
+            nil
+            alns)
     (dotimes [i (- end beg)]
       (aset-int
        pile
@@ -87,14 +89,16 @@
   (let [beg (int beg)
         end (int end)
         offset (int offset)]
-    (doseq [aln alns]
-      (let [left (Math/max ^int (:pos aln) beg)
-            right (int ^long (inc (or (:end aln) (sam-util/get-end aln))))
-            left-index (+ (- left beg) offset)
-            right-index (+ (- right beg) offset)]
-        (aset-int pile left-index (inc (aget pile left-index)))
-        (when (<= right end)
-          (aset-int pile right-index (dec (aget pile right-index))))))
+    (reduce (fn [_ aln]
+              (let [left (Math/max ^int (:pos aln) beg)
+                    right (int ^long (inc (or (:end aln) (sam-util/get-end aln))))
+                    left-index (+ (- left beg) offset)
+                    right-index (+ (- right beg) offset)]
+                (aset-int pile left-index (inc (aget pile left-index)))
+                (when (<= right end)
+                  (aset-int pile right-index (dec (aget pile right-index))))))
+            nil
+            alns)
     (dotimes [i (- end beg)]
       (aset-int pile (+ (inc i) offset) (+ (aget pile (+ i offset)) (aget pile (+ (inc i) offset)))))))
 
